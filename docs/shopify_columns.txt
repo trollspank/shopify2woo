@@ -1,0 +1,77 @@
+Shopify has the following columns I've added the index "count" in front so that
+it makes sense as to what 'row' element is being referenced within the CSV parser
+code.
+
+INDEX       Column Name
+0           Name
+1           Email
+2           Financial Status
+3           Paid at
+4           Fulfillment Status
+5           Fulfilled at
+6           Accepts Marketing
+7           Currency
+8           Subtotal
+9           Shipping
+10          Taxes
+11          Total
+12          Discount Code
+13          Discount Amount
+14          Shipping Method
+15          Created at
+16          Lineitem quantity
+17          Lineitem name
+18          Lineitem price
+19          Lineitem compare at price
+20          Lineitem sku
+21          Lineitem requires shipping
+22          Lineitem taxable
+23          Lineitem fulfillment status
+24          Billing Name
+25          Billing Street
+26          Billing Address1
+27          Billing Address2
+28          Billing Company
+29          Billing City
+30          Billing Zip
+31          Billing Province
+32          Billing Country
+33          Billing Phone
+34          Shipping Name
+35          Shipping Street
+36          Shipping Address1
+37          Shipping Address2
+38          Shipping Company
+39          Shipping City
+40          Shipping Zip
+41          Shipping Province
+42          Shipping Country
+43          Shipping Phone
+44          Notes
+45          Note Attributes
+46          Cancelled at
+47          Payment Method
+48          Payment Reference
+49          Refunded Amount
+50          Vendor
+51          Outstanding Balance
+52          Employee
+53          Location
+54          Device ID
+55          Id
+56          Tags
+57          Risk Level
+58          Source
+59          Lineitem discount
+60          Tax 1 Name
+61          Tax 1 Value
+62          Tax 2 Name
+63          Tax 2 Value
+64          Tax 3 Name
+65          Tax 3 Value
+66          Tax 4 Name
+67          Tax 4 Value
+68          Tax 5 Name
+69          Tax 5 Value
+70          Phone
+71          Receipt Number

@@ -14,6 +14,10 @@ without spending more money.
 import click
 import csv
 
+# My custom imports
+import fields
+from utils import split_name
+
 
 @click.command()
 @click.argument("input_csv", type=click.File('r'))
@@ -35,7 +39,7 @@ def cli(input_csv, output_csv):
     # Going to create a "hit cache" for orders, so we can add the order into our list if we have at least one
     # line of the order with paid/fulfilled. Vs. just doing "last_order" back-reference, only incase we ever
     # encounter orders listed "out of order" and not back-to-back (shouldn't, but might as well be safe)
-    order_table = dict()
+    order_cache = dict()
     input_contents = csv.reader(input_csv)
 
     # Skip the first line in the CSV, this will describe the CSV as a text header
@@ -55,61 +59,96 @@ def cli(input_csv, output_csv):
         # order hit table, and test it's existence in the case that paid/fulfilled is empty on a line item.
 
         # First, we need to remove the "#" from the front of orders, WooCommerce doesn't like it.
-        order = row[0].replace("#", "")
-        financial_status = row[2]
-
+        order = row[fields.name].replace("#", "")
+        financial_status = row[fields.financial_status]
         # This is a throw away field but we need to use it a few times so give it a name.
-        fulfillment_status = row[4]
+        fulfillment_status = row[fields.fulfillment_status]
 
         # Future thoughts: create a third CSV that contains all the orders we're skipping so they can be
         # reviewed to see if they are important or not.
         if financial_status == "paid" and fulfillment_status == "fulfilled":
             skip_order = False
-        elif financial_status == "" and fulfillment_status == "" and order_table.get(order):
+        elif financial_status == "" and fulfillment_status == "" and order_cache.get(order):
             skip_order = False
 
         if not skip_order:
             # We will not accept all the fields of shopify, so we will skip things like "Fulfilled at"
             # and we won't need the "Fulfillment Status" either. Just financial status in that regard.
+            cached_order = order_cache.get(order)
 
-            # Absorb only the row entries we need:
-            email = row[1]
-            paid_at = row[3]
-            currency = row[7]
-            shipping_total = row[9]
-            order_total = row[11]
-            shipping_method = row[14]
-            created_at = row[15]
-            item_quantity = row[16]
-            item_name = row[17]
-            item_total = row[18]
-            item_sku = row[20]
+            # Absorb only the row entries we need, some will be empty because the order
+            # is a secondary line item of a larger order, for those we'll draw from the
+            # cache -- or, if no cache exists for the order, it's the first time encountering
+            # the order, so we'll cache the required data (not all, just the stuff that will
+            # be missing)
+            email = row[fields.name]
+            paid_at = row[fields.paid_at]
+            currency = row[fields.currency]
+            shipping_total = row[fields.shipping]
+            order_total = row[fields.total]
+            shipping_method = row[fields.shipping_method]
+            created_at = row[fields.created_at]
+            item_quantity = row[fields.lineitem_quantity]
+            item_name = row[fields.lineitem_name]
+            item_total = row[fields.lineitem_price]
+            item_sku = row[fields.lineitem_sku]
 
-            if row[24] == "":
-                # The name wasn't included in the line item, we'll have to pull from the cache
-                billing_first_name = order_table[order]['billing_first_name']
-                billing_last_name = order_table[order]['billing_last_name']
+            if cached_order:
+                # The order wa found, so there will be some fields that are empty. We
+                # won't even bother to check them, just used the cached information.
+                billing_first_name = order_cache[order]["billing_first_name"]
+                billing_last_name = order_cache[order]["billing_last_name"]
+                billing_address1 = order_cache[order]["billing_address1"]
+                billing_address2 = order_cache[order]["billing_address2"]
+                billing_company = order_cache[order]["billing_company"]
+                billing_city = order_cache[order]["billing_city"]
+                billing_zip = order_cache[order]["billing_zip"]
+                billing_state = order_cache[order]["billing_state"]
+                billing_country = order_cache[order]["billing_country"]
+                billing_phone = order_cache[order]["billing_phone"]
+
             else:
-                # Billing name will be split into a first,second names where Shopify used
-                # one long name. We will take any middle names or other "things" in the name
-                # (e.g. "Jr, III, etc.") and just stick them on the last name.
-                name_array = row[24].split(" ")
-                billing_first_name = name_array[0]
+                # Not cached. We will by the end though.
+                billing_address1 = row[fields.billing_address1]
+                billing_address2 = row[fields.billing_address2]
+                billing_company = row[fields.billing_company]
+                billing_city = row[fields.billing_city]
+                billing_zip = row[fields.billing_zip]
+                billing_state = row[fields.billing_province]
+                billing_country = row[fields.billing_country]
+                billing_phone = row[fields.billing_phone]
 
-                if len(name_array) > 1:
-                    # Oh yay, seems the customer has a last name :-)
-                    name_array.pop(0)  # kick the first name out.
-                    billing_last_name = ' '.join([str(elem) for elem in name_array])
-                else:
-                    billing_last_name = ""  # Trust me, some folks don't use/have last name.
+                # Odd bug, the export for many of the zipcodes has a ' mark in them, clean it out.
+                # This also appeared in the import into Google Sheets as well, must be a bug in shopify
+                billing_zip = billing_zip.replace("'", "")
+
+                billing_first_name, billing_last_name = split_name(row[fields.billing_name])
 
                 # Add to our hit cache so we can absorb all further line items
-                order_table[order] = {
+                order_cache[order] = {
                     "billing_first_name": billing_first_name,
                     "billing_last_name": billing_last_name,
+                    "billing_address1": billing_address1,
+                    "billing_address2": billing_address2,
+                    "billing_company": billing_company,
+                    "billing_city": billing_city,
+                    "billing_zip": billing_zip,
+                    "billing_state": billing_state,
+                    "billing_country": billing_country,
+                    "billing_phone": billing_phone,
+
                 }
 
             print(f"Order Number: {order}")
             print(f"E-mail Address: {email}")
             print(f"Billing First Name: {billing_first_name}")
             print(f"Billing Last Name: {billing_last_name}")
+            print(f"Billing Addr1: {billing_address1}")
+            print(f"Billing Addr2: {billing_address2}")
+            print(f"Billing Company: {billing_company}")
+            print(f"Billing City: {billing_city}")
+            print(f"Billing Zip: {billing_zip}")
+            print(f"Billing State: {billing_state}")
+            print(f"Billing Country: {billing_country}")
+            print(f"Billing Phone: {billing_phone}")
+
