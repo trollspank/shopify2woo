@@ -26,7 +26,6 @@ woocommerce_columns = [
     "total",
     "total_shipping",
     "cart_tax",
-    "shipping_tax",
     "total_discount",
     "payment_method",
     "currency",
@@ -36,7 +35,7 @@ woocommerce_columns = [
     "billing_phone",
     "billing_address_1",
     "billing_address_2",
-    "bil,ling_postcode"
+    "billing_postcode",
     "billing_city",
     "billing_state",
     "billing_country",
@@ -79,7 +78,6 @@ def cli(input_csv, output_csv, sample_size):
     # encounter orders listed "out of order" and not back-to-back (shouldn't, but might as well be safe)
     order_cache = dict()
     order_commits = 0
-    last_order = None
 
     input_contents = csv.reader(input_csv)
     csv_writer = csv.writer(output_csv)
@@ -88,8 +86,6 @@ def cli(input_csv, output_csv, sample_size):
 
     if sample_size:
         print(f"Limiting output to sample size of {sample_size}")
-
-    csv_writer.writerow(woocommerce_columns)
 
     for row in input_contents:
 
@@ -113,12 +109,7 @@ def cli(input_csv, output_csv, sample_size):
 
         # Future thoughts: create a third CSV that contains all the orders we're skipping so they can be
         # reviewed to see if they are important or not.
-        if financial_status == "paid" and fulfillment_status == "fulfilled":
-            skip_order = False
-        elif order_cache.get(order_number):
-            skip_order = False
-
-        if not skip_order:
+        if (financial_status == "paid" and fulfillment_status == "fulfilled") or order_cache.get(order_number):
 
             cached_order = order_cache.get(order_number)
 
@@ -130,6 +121,13 @@ def cli(input_csv, output_csv, sample_size):
                 # Cache it so we have it later.
                 order_cache[order_number] = cached_order
 
-            cached_order.dump()
             if sample_size and order_commits >= sample_size:
                 break
+
+    # write our column header before jumping into our loop.
+    csv_writer.writerow(woocommerce_columns)
+
+    for order in order_cache:
+        csv_writer.writerow(order_cache[order].build_record())
+        print(order_cache[order].build_record())
+        print("\n")

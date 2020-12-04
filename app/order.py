@@ -25,7 +25,7 @@ class Order:
         ----------
         record: A CSV record row (see 'csv' module)
         """
-        self._order = record[fields.name]
+        self._order = record[fields.name].replace("#", "")
         self._status = "completed"                       # Only bring in completed orders
         self._created_at = record[fields.created_at]
         self._total = record[fields.total]
@@ -56,10 +56,10 @@ class Order:
         self._shipping_company = record[fields.shipping_company]
         self._note = record[fields.notes]
 
-        self._shipping_lines = {
+        self._shipping_lines = [{
             "method_title": record[fields.shipping_method],
             "total": record[fields.shipping]
-        }
+        }]
 
         # Add initial item from this record (more can follow)
         self._item_list = list()
@@ -77,6 +77,13 @@ class Order:
         print(f"Item List: %s" % (json.dumps(self._item_list)))
 
     def add_item(self, record):
+        """
+        Add a new item to our list of items that this order can have on it, we'll store as a dictionary because
+        later we'll need to render it as a JSON array, so that will make it easy.
+
+        :param record: the CSV record array
+        :return: None.
+        """
         item = {
             "sku": record[fields.lineitem_sku],
             "quantity": record[fields.lineitem_quantity],
@@ -84,3 +91,46 @@ class Order:
             "total": record[fields.lineitem_price],
         }
         self._item_list.append(item)
+
+    def build_record(self):
+
+        return [
+            self._order,
+            self._created_at,
+            self._status,
+            self._total,
+            self._total_shipping,
+            self._cart_tax,
+            # skip shipping_tax (on purpose, because we don't have that record)
+            self._total_discount,
+            # skip total discount (shopify doesn't give us that easily)
+            self._payment_method,
+            self._currency,
+            # skip customer_id because we don't have that
+            self._billing_first_name,
+            self._billing_last_name,
+            self._billing_email,
+            self._billing_phone,
+            self._billing_address_1,
+            self._billing_address_2,
+            self._billing_postcode,
+            self._billing_city,
+            self._billing_state,
+            self._billing_country,
+            self._billing_company,
+            self._shipping_first_name,
+            self._shipping_last_name,
+            self._shipping_address_1,
+            self._shipping_address_2,
+            self._shipping_postcode,
+            self._shipping_city,
+            self._shipping_state,
+            self._shipping_country,
+            self._shipping_company,
+            self._note,
+            # Line items (JSON)
+            json.dumps(self._item_list),
+            # Shipping lines (JSON)
+            json.dumps(self._shipping_lines),
+            # We will skip tax_lines, coupon_lines, refunds, order_notes, download_permissions_granted, order_cost_total
+        ]
