@@ -6,8 +6,9 @@ if we mess one up, we can change the constant.
 These fields map to those found in ../docs/shopify_columns.txt
 """
 
-name = 0
-email = 1
+
+name=0
+email=1
 financial_status = 2
 paid_at = 3
 fulfillment_status = 4
@@ -40,3 +41,17 @@ billing_zip = 30
 billing_province = 31
 billing_country = 32
 billing_phone = 33
+shipping_name = 34
+shipping_street = 35
+shipping_address1 = 36
+shipping_address2 = 37
+shipping_company = 38
+shipping_city = 39
+shipping_zip = 40
+shipping_province = 41
+shipping_country = 42
+shipping_phone = 43
+notes = 44
+# Skipping a bunch of unused fields (in WooCommerce so no need to address them)
+payment_method = 47
+tax_1_value = 61
