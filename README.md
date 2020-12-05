@@ -27,6 +27,10 @@ https://docs.google.com/spreadsheets/d/16ub-_xEJD9V5UL6d_rTQ4LLu0PT9jXJ0Ti-iirlK
 Shopify Export Orders Specification:
 https://help.shopify.com/en/manual/orders/export-orders
 
+The docs directory within this repository has a few helpful tools of
+information, I broke out the columns/indexes for the shopify csv, 
+woo_commerce_template (a downloaded excel spreadsheet)
+
 ## Installation
 I use setuptools for installation, and I have created a gitignore
 for `venv` so you can simply issue the commands below in your terminal
@@ -35,8 +39,12 @@ to install and activate the environment.
 cd app
 virtualenv venv
 . venv/bin/activate
+pip install -r requirements.txt
 pip install --editable .
 ```
+Note: This app was designed in a Python 3.8 environment, it uses
+f-strings so you'll want to have at least a Python 3.x virtual environment.
+
 
 ## Basic Usage
 The basic usage takes two command line parameters: an input csv, and an output.csv file (full path to file)
