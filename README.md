@@ -5,6 +5,14 @@ an input CSV file and generates an output CSV file.
 A few options exist to help "massage" the data into a more friendly
 WooCommerce import format.
 
+### License
+Licensed under [MIT License](https://github.com/trollspank/shopify2woo/blob/main/LICENSE).
+
+## Disclaimer
+I wrote this because I needed it, and I hand it to you to use, modify and make 
+better. But, if it doesn't work, it's because my sample was my own store and my own
+problems that were encountered. Your mileage may vary.
+
 ### The Initial Motivation for Shopify2Woo
 I moved to WooCommerce because Shopify screwed me and shut down my payment
 gateway (then charged me 3% to use a third party) because they accused me of 
