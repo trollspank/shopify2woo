@@ -57,9 +57,10 @@ woocommerce_columns = [
 
 @click.command()
 @click.option("-s", "--sample", 'sample_size', type=int, help="Allow a smaller order sample size for dry-run imports.")
+@click.option("-o", "--order", 'order_export', type=str, help="Export a very specific order (good for testing).")
 @click.argument("input_csv", type=click.File('r'))
 @click.argument("output_csv", type=click.File('w'))
-def cli(input_csv, output_csv, sample_size):
+def cli(input_csv, output_csv, sample_size, order_export):
     """
     Entry point for executing the base functionality for shopify2woo, this sucker will take the CSV file
     of data from Shopify and burp out an output CSV that can be imported into WooCommerce.
@@ -127,7 +128,17 @@ def cli(input_csv, output_csv, sample_size):
     # write our column header before jumping into our loop.
     csv_writer.writerow(woocommerce_columns)
 
-    for order in order_cache:
-        csv_writer.writerow(order_cache[order].build_record())
-        print(order_cache[order].build_record())
-        print("\n")
+    if order_export:
+
+        if order_cache.get(order_export):
+            csv_writer.writerow(order_cache[order_export].build_record())
+            print(f"Exported 1 order (order number {order_export})")
+        else:
+            print(f"% Error: The order {order_export} was not found in your dataset")
+    else:
+        total_orders = 0
+        for order in order_cache:
+            total_orders = total_orders + 1
+            csv_writer.writerow(order_cache[order].build_record())
+
+        print(f"Exported {total_orders} orders(s)")

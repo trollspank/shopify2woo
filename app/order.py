@@ -6,6 +6,24 @@ that reality, they want a single sell to have all the line items (either with pi
 We will encode all line items as JSON within the "line items" cell, as defined by WooCommerce's example CSV file
 format: https://docs.google.com/spreadsheets/d/16ub-_xEJD9V5UL6d_rTQ4LLu0PT9jXJ0Ti-iirlKyuU/edit#gid=584795629
 
+A not about line_items, which we will encoding in our CSV "cell" as a JSON array: we are going to pull in the
+bare minimum to make this work well, for instance:
+
+[{
+    "sku": "560",
+    "quantity": "1",
+    "total": "32.99"
+}]
+
+I ran into issues importing the 'name' because names that contain any quotes are encoded with a \" and this causes
+the CSV Importer heartburn. It should work (it's formatted right) but it doesn't. So, names like:
+   8" Hardwood Muddler translate to "8\" Hardwood Muddler" and the system fails to parse SKU's after it encounters
+   a \"
+
+One could use the | delimited option instead of JSON (from the example CSV file) however, if your product name
+contains a | (like "8 inch hardwood muddler | basic bartool") then you may run into more problems. However, given
+the system does not even use the name, but instead favors the SKU to pull the product right from the product
+database (as I've tested) the name does nothing but creates more import difficulties. So, we are leaving it off.
 """
 
 import json
@@ -84,16 +102,27 @@ class Order:
         :param record: the CSV record array
         :return: None.
         """
+        # Note: We will not pull along the name of the item, the SKU will do because it will pull
+        # the relevant item data from the product data in WooCommerce (which should be entered before
+        # the orders).
+        # If the product SKU isn't found (and you force it via import to include anyway) the item name
+        # still isn't used (the item will just say "Unknown Product").
         item = {
             "sku": record[fields.lineitem_sku],
             "quantity": record[fields.lineitem_quantity],
-            "name": record[fields.lineitem_name],
             "total": record[fields.lineitem_price],
         }
+
         self._item_list.append(item)
 
     def build_record(self):
+        """
+        Build an array appropriate for a CSV writer to writerow() to disk. The order makes a big
+        difference here because it must match the column header that was written down (if it was
+        written).
 
+        :return: entire product class written into an ordered array (order matters)
+        """
         return [
             self._order,
             self._created_at,
