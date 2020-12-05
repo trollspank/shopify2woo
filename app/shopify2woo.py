@@ -54,34 +54,49 @@ woocommerce_columns = [
     "shipping_lines",
 ]
 
-
 @click.command()
-@click.option("-s", "--sample", 'sample_size', type=int, help="Allow a smaller order sample size for dry-run imports.")
-@click.option("-o", "--order", 'order_export', type=str, help="Export a very specific order (good for testing).")
-@click.argument("input_csv", type=click.File('r'))
-@click.argument("output_csv", type=click.File('w'))
-def cli(input_csv, output_csv, sample_size, order_export):
+@click.option("-u",
+              "--sku-placeholder",
+              "sku_placeholder",
+              type=str,
+              help="SKU name/id to use to fix missing SKU issues")
+@click.option("-s",
+              "--sample",
+              "sample_size",
+              type=int,
+              help="Allow a smaller order sample size for dry-run imports.")
+@click.option("-o",
+              "--order",
+              "order_export",
+              type=str,
+              help="Export a very specific order (good for testing).")
+@click.option("-c",
+              "--clean-only",
+              "clean_only",
+              help="Only write out orders that do not generate warnings on e-mail addresses, SKU's, etc.",
+              is_flag=True)
+@click.argument("input_csv",
+                type=click.File('r'))
+@click.argument("output_csv",
+                type=click.File('w'))
+def cli(input_csv, output_csv, sample_size, order_export, clean_only, sku_placeholder):
     """
-    Entry point for executing the base functionality for shopify2woo, this sucker will take the CSV file
-    of data from Shopify and burp out an output CSV that can be imported into WooCommerce.
+    Convert INPUT_CSV file (e.g. order_export_1.csv) to OUTPUT_CSV (e.g. woocommerce_export.csv).
 
-    Parameters
-    ----------
-    input_csv: the csv file from Shopify
-    output_csv: the new csv file for WooCommerce
-    sample_size: How many full orders to export (to sample the data)
-    Returns
-    -------
-
+    All orders listed as "paid" and "fulfilled" will be imported, warnings will be displayed which may cause
+    WooCommerce to fail to input the specific order.
     """
-    # Going to create a "hit cache" for orders, so we can add the order into our list if we have at least one
-    # line of the order with paid/fulfilled. Vs. just doing "last_order" back-reference, only incase we ever
-    # encounter orders listed "out of order" and not back-to-back (shouldn't, but might as well be safe)
+    # We will cache all incoming orders and write them out after they're all collected. While this isn't optimal
+    # for large datasets, our test dataset was about 11k orders. Shopfiy creates a new "order entry" for every
+    # item in an order; so we will need to combine them together into one single Order class (which is easier if we
+    # cache the order).
     order_cache = dict()
     order_commits = 0
 
+    # the two files are open by click.File() and closed when we leave scope, easy peasy.
     input_contents = csv.reader(input_csv)
     csv_writer = csv.writer(output_csv)
+
     # Skip the first line in the CSV, this will describe the CSV as a text header
     next(input_contents)
 
@@ -90,16 +105,12 @@ def cli(input_csv, output_csv, sample_size, order_export):
 
     for row in input_contents:
 
-        skip_order = True
         # Only Migrate Paid and Fulfilled Orders, unfortunately Shopify only lists the first item in an order
         # as "paid" and "fulfilled", the rest are left empty.
 
         # "In your order CSV file, orders with multiple line items show their additional line items on separate lines.
         # Many of the fields are left blank to indicate that multiple items were purchased on the same order."
         # https://help.shopify.com/en/manual/orders/export-orders
-
-        # So, the first time we encounter a good healthy order with paid/fulfilled we will put it into our
-        # order hit table, and test it's existence in the case that paid/fulfilled is empty on a line item.
 
         # First, we need to remove the "#" from the front of orders, WooCommerce doesn't like it.
         order_number = row[fields.name].replace("#", "")
@@ -112,16 +123,21 @@ def cli(input_csv, output_csv, sample_size, order_export):
         # reviewed to see if they are important or not.
         if (financial_status == "paid" and fulfillment_status == "fulfilled") or order_cache.get(order_number):
 
+            # Get our cached order, if it isn't in the cache, it will return NONE and we will create a new order.
             cached_order = order_cache.get(order_number)
 
             if cached_order:
+                # Hit! That means the order exists, this line is jus a new item entry for it.
                 cached_order.add_item(row)
             else:
+                # A new order, set up the base stuff and get it into our cache.
                 order_commits = order_commits + 1
-                cached_order = Order(row)
+                cached_order = Order(row, sku_placeholder)
+
                 # Cache it so we have it later.
                 order_cache[order_number] = cached_order
 
+            # If we exceed a sample size (if it's enabled) bail, we've got enough orders for our sample.
             if sample_size and order_commits >= sample_size:
                 break
 
@@ -129,16 +145,40 @@ def cli(input_csv, output_csv, sample_size, order_export):
     csv_writer.writerow(woocommerce_columns)
 
     if order_export:
-
         if order_cache.get(order_export):
-            csv_writer.writerow(order_cache[order_export].build_record())
-            print(f"Exported 1 order (order number {order_export})")
+            total_errors = order_cache[order_export].error_list()
+
+            for error in total_errors:
+                print(error)
+
+            if clean_only:
+                if len(total_errors) == 0:
+                    csv_writer.writerow(order_cache[order_export].build_record())
+                    print(f"Exported 1 order (order number {order_export})")
+                else:
+                    print(f"Skipping order {order_export} due to warnings")
+            else:
+                csv_writer.writerow(order_cache[order_export].build_record())
+                print(f"Exported 1 order (order number {order_export})")
         else:
             print(f"% Error: The order {order_export} was not found in your dataset")
     else:
         total_orders = 0
         for order in order_cache:
-            total_orders = total_orders + 1
-            csv_writer.writerow(order_cache[order].build_record())
+
+            total_errors = order_cache[order].error_list()
+
+            for error in total_errors:
+                print(error)
+
+            if clean_only:
+                if len(total_errors) == 0:
+                    total_orders = total_orders + 1
+                    csv_writer.writerow(order_cache[order].build_record())
+                else:
+                    print(f"Skipping order {order} due to warnings")
+            else:
+                total_orders = total_orders + 1
+                csv_writer.writerow(order_cache[order].build_record())
 
         print(f"Exported {total_orders} orders(s)")

@@ -35,7 +35,7 @@ from utils import split_name
 
 class Order:
 
-    def __init__(self, record):
+    def __init__(self, record, sku_placeholder):
         """
         Initialize a new order with all the base information plus one line item.
 
@@ -43,6 +43,9 @@ class Order:
         ----------
         record: A CSV record row (see 'csv' module)
         """
+        self._error_list = list()
+        self._sku_placeholder = sku_placeholder
+
         self._order = record[fields.name].replace("#", "")
         self._status = "completed"                       # Only bring in completed orders
         self._created_at = record[fields.created_at]
@@ -83,6 +86,36 @@ class Order:
         self._item_list = list()
         self.add_item(record)
 
+        # If the billing email is empty the import to WooCommerce will fail as it's basically
+        # your 'key' to the customer.
+        if self._billing_email == "":
+            self._add_error(f"% Warning: There is an empty billing email on order {self._order}")
+
+
+    def _add_error(self, error_string):
+        """
+        Add error to our error list (internal call)
+
+        Parameters
+        ----------
+        error_string: The string to keep in our list
+
+        Returns
+        -------
+        None
+        """
+        self._error_list.append(error_string)
+
+    def error_list(self):
+        """
+        Return all errors we've encountered.
+
+        Returns
+        -------
+        list: a list of strings (of errors)
+        """
+        return self._error_list
+
     def dump(self):
         """
         Dump order out in a readable display for debugging.
@@ -99,19 +132,33 @@ class Order:
         Add a new item to our list of items that this order can have on it, we'll store as a dictionary because
         later we'll need to render it as a JSON array, so that will make it easy.
 
-        :param record: the CSV record array
-        :return: None.
+        Parameters
+        ----------
+        record: array from a CSV row
+
+        Returns
+        -------
+        None.
         """
-        # Note: We will not pull along the name of the item, the SKU will do because it will pull
-        # the relevant item data from the product data in WooCommerce (which should be entered before
-        # the orders).
-        # If the product SKU isn't found (and you force it via import to include anyway) the item name
-        # still isn't used (the item will just say "Unknown Product").
+        sku = record[fields.lineitem_sku]
+
+        if self._sku_placeholder and sku == "":
+            # The sku is missing and the user wants us to put in the placeholder
+            sku = self._sku_placeholder
+
         item = {
-            "sku": record[fields.lineitem_sku],
+            "sku": sku,
             "quantity": record[fields.lineitem_quantity],
             "total": record[fields.lineitem_price],
         }
+
+        # If the SKU is missing, this order will be rejected upon import to WooCommerce.
+        if record[fields.lineitem_sku] == "":
+            self._add_error(f"% Warning: There is an empty SKU on \"{record[fields.lineitem_name]}\" "
+                            f"in order {self._order}")
+
+            if self._sku_placeholder:
+                self._add_error(f"% Update: Substituting SKU \"{sku}\" for {record[fields.lineitem_name]}")
 
         self._item_list.append(item)
 
